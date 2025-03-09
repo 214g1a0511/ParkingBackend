@@ -20,10 +20,10 @@ app.use("/users", router);
 app.use("/customer", customer_router);
 
 const now = new Date();
-console.log(now);
+// console.log(now);
 cron.schedule("* * * * *", () => {
-  console.log("Running cron job to check expired timestamps");
-  // scheduleExpirationCheck();
+  // console.log("Running cron job to check expired timestamps");
+  scheduleExpirationCheck();
 });
 
 mongoose

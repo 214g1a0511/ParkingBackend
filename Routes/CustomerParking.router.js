@@ -6,6 +6,7 @@ const UserModel = require("../Models/User.model");
 const customer_router = express.Router();
 const tokenmiddleware = require("../Middlewares/Authentication.middleware");
 const { generateUniqueId } = require("../Functions/function");
+const VehicleModel = require("../Models/Vehicles.model");
 customer_router.post("/register", async (req, res) => {
   const { email_id, phone_number, password, full_name } = req.body;
 
@@ -43,8 +44,8 @@ customer_router.post("/login", async (req, res) => {
     if (!user) {
       return res.status(400).json("Invalid credentials");
     }
-    console.log("req pass", password);
-    console.log("req DB", user.password);
+    // console.log("req pass", password);
+    // console.log("req DB", user.password);
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json("Invalid credentials");
@@ -87,7 +88,7 @@ customer_router.get("/userDetails", tokenmiddleware, async (req, res) => {
       { password: 0 }
     );
 
-    console.log(user_details);
+    // console.log(user_details);
 
     res.send(user_details);
   } catch (error) {
@@ -100,7 +101,7 @@ customer_router.get(
   tokenmiddleware,
   async (req, res) => {
     const { vehicleType } = req.params; // Extract vehicleType from params
-    console.log("vehicleType", vehicleType);
+    // console.log("vehicleType", vehicleType);
     // Validate the vehicleType
     if (vehicleType !== "bike" && vehicleType !== "car") {
       return res
@@ -153,6 +154,98 @@ customer_router.get("/getslots", tokenmiddleware, async (req, res) => {
   }
 });
 
+// Updated vehicle details route
+
+customer_router.post("/vehicleDetails", tokenmiddleware, async (req, res) => {
+  try {
+    const request_body = req.body;
+    // console.log("req.body", request_body);
+    const now = new Date();
+    const expirationDate = new Date(
+      now.getTime() +
+        Number(request_body["days_of_parking"]) * 24 * 60 * 60 * 1000
+    );
+
+    const id = generateUniqueId();
+
+    request_body["id"] = id;
+
+    request_body["expiry_time"] = expirationDate;
+
+    const vehicle_details = new VehicleModel(request_body);
+
+    await vehicle_details.save();
+
+    const modified = await CustomerRecordModel.findOneAndUpdate(
+      { _id: req.user.id, email_id: req.user.email_id },
+      {
+        $push: {
+          vehicle: {
+            id: id,
+          },
+        },
+      },
+      { returnOriginal: false }
+    );
+
+    if (!modified) {
+      return res.status(400).json({ msg: "Unable to modify" });
+    }
+
+    res.json({ id, message: "Successfully updated vehicle details" });
+    // appending id and expiry_time in server
+  } catch (error) {
+    res.send(error);
+  }
+});
+
+// put request for payment
+
+customer_router.put("/payment/:id", tokenmiddleware, async (req, res) => {
+  const id = req.params.id;
+  // console.log("id", id);
+  try {
+    const vehicle_record = await VehicleModel.findOneAndUpdate(
+      { id: id },
+      { status: "paid" },
+      { returnOriginal: false }
+    );
+
+    if (!vehicle_record) {
+      res.json("Unable to make Payment!");
+    }
+
+    const slot_update = await UserModel.findOne({
+      parking_vendor: req.user.parking_vendor,
+    });
+
+    let slotFound = false;
+
+    slot_update.layout[vehicle_record["vehicle_type"]].forEach((el) => {
+      if (el.slot === vehicle_record["parking_slot"]) {
+        // console.log("bike", el.slot, el.booked);
+        if (el.booked === "true") {
+          res.json("Slot is already booked. Try another slot");
+        }
+        el.booked = "true";
+        slotFound = true;
+      }
+    });
+
+    if (!slotFound) {
+      return res.status(404).json("Slot not found");
+    }
+
+    slot_update.markModified("layout");
+
+    await slot_update.save();
+
+    res.json("Payment Successfull!");
+  } catch (error) {
+    res.json(error);
+  }
+});
+
 customer_router.put("/modify", tokenmiddleware, async (req, res) => {
   const {
     email,
@@ -165,7 +258,7 @@ customer_router.put("/modify", tokenmiddleware, async (req, res) => {
     amount,
   } = req.body;
   try {
-    console.log(req.user.id, req.user.email_id);
+    // console.log(req.user.id, req.user.email_id);
 
     const now = new Date();
     const expirationDate = new Date(
@@ -178,7 +271,7 @@ customer_router.put("/modify", tokenmiddleware, async (req, res) => {
         $push: {
           vehicle: {
             id: id,
-            email: email,
+            email: req.user.email_id,
             mobile: mobile,
             parking_slot: parkingslot,
             vehicle_name: vehicle_name,
@@ -201,6 +294,28 @@ customer_router.put("/modify", tokenmiddleware, async (req, res) => {
   } catch (error) {
     console.error(error.message);
     res.status(500).send("Server error");
+  }
+});
+
+customer_router.get("/history", tokenmiddleware, async (req, res) => {
+  try {
+    const userHistory = await CustomerRecordModel.findById({
+      _id: req.user.id,
+    });
+    if (!userHistory) {
+      res.send({ msg: "No Vehicles found" });
+    }
+
+    const vehicleIds = userHistory.vehicle.map((vehicleObj) => vehicleObj.id);
+
+    const matchingVehicles = await VehicleModel.find({
+      id: { $in: vehicleIds },
+    });
+    // console.log(matchingVehicles);
+
+    res.send(matchingVehicles);
+  } catch (error) {
+    res.json(error);
   }
 });
 

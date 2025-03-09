@@ -22,17 +22,7 @@ const CustomerSchema = new mongoose.Schema(
     parking_vendor: { type: String, default: "" },
     vehicle: [
       {
-        id: { type: String, default: "" },
-        email: { type: String, default: "" },
-        mobile: { type: String, default: "" },
-        parking_slot: { type: String, default: "" },
-        amount: { type: String, default: "" },
-        vehicle_type: { type: String, default: "" },
-        days_of_parking: { type: String, default: "" },
-        vehicle_name: { type: String, default: "" },
-        expiry_time: { type: String, default: "" },
-        transaction_id: { type: String, default: "" },
-        status: { type: String, default: "" },
+        id: { type: String, default: "" }
       },
     ],
     parking: [],
