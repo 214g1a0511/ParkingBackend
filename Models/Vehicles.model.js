@@ -10,7 +10,7 @@ const VehicleSchema = new mongoose.Schema(
     vehicle_type: { type: String, required: true },
     vehicle_number: { type: String, required: true },
     amount: { type: String },
-    days_of_parking: { type: String, required: true },
+    hours_of_parking: { type: Number, required: true },
     expiry_time: { type: String },
     status: { type: String, default: "unpaid" },
   },
